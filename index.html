@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgroDrones — мониторинг полей</title>
+<style>
+  :root{--bg:#0f1419;--panel:#1a2230;--panel2:#222c3d;--text:#e6edf3;--muted:#9aa7b8;--line:#2c3a4e;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;min-height:100vh;padding:24px;}
+  .wrap{max-width:560px;margin:0 auto;}
+  h1{font-size:24px;font-weight:600;margin:0 0 4px;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 6px;}
+  .live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#22c55e;margin-bottom:18px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+  button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:14px;cursor:pointer;transition:transform .08s,background .15s;}
+  button:hover:not(:disabled){background:#2b384c;}
+  button:active:not(:disabled){transform:scale(.97);}
+  button:disabled{opacity:.5;cursor:default;}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
+  .stat{background:var(--panel);border-radius:10px;padding:12px;}
+  .stat .lbl{font-size:12px;color:var(--muted);}
+  .stat .val{font-size:22px;font-weight:600;margin-top:2px;}
+  .board{background:var(--panel);border-radius:14px;padding:14px;display:flex;justify-content:center;}
+  canvas{max-width:100%;height:auto;border-radius:8px;}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;font-size:13px;color:var(--muted);align-items:center;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block;}
+  #log{margin-top:18px;background:#0c1117;border:1px solid var(--line);border-radius:10px;padding:14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;color:var(--muted);min-height:64px;}
+  .foot{margin-top:18px;font-size:12px;color:var(--muted);text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🚁 AgroDrones</h1>
+  <p class="sub">Дистанционный мониторинг и обработка полей дронами</p>
+  <div class="live"><span class="dot"></span>данные приходят с Python-сервера (Flask)</div>
+
+  <div class="btns">
+    <button id="btn-scan">📡 Разведка поля</button>
+    <button id="btn-run">▶ Прожить день</button>
+    <button id="btn-reset">↻ Новый цикл</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="lbl">День</div><div class="val" id="stat-day">0</div></div>
+    <div class="stat"><div class="lbl">Проблемных зон</div><div class="val" id="stat-zones">—</div></div>
+    <div class="stat"><div class="lbl">Заряд</div><div class="val" id="stat-battery">100</div></div>
+    <div class="stat"><div class="lbl">Бак</div><div class="val" id="stat-tank">10</div></div>
+  </div>
+
+  <div class="board"><canvas id="field" width="448" height="448"></canvas></div>
+
+  <div class="legend">
+    <span><span class="sw" style="background:#22c55e;"></span>OK</span>
+    <span><span class="sw" style="background:#f59e0b;"></span>Warning</span>
+    <span><span class="sw" style="background:#ef4444;"></span>Critical</span>
+    <span><span class="sw" style="background:#3b82f6;"></span>Дрон</span>
+    <span>✓ Обработано</span>
+  </div>
+
+  <div id="log">Нажмите «Разведка поля» — браузер запросит данные с сервера.</div>
+  <p class="foot">Веб-версия связана с Python через Flask · http://localhost:5000</p>
+</div>
+
+<script>
+const N=8, CELL=56;
+const canvas=document.getElementById('field');
+const ctx=canvas.getContext('2d');
+let fieldData=null;        // последнее состояние поля с сервера
+let drone={r:0,c:0};
+let doneCells=[];          // обработанные клетки (для галочек)
+let busy=false;
+
+const colorByStatus = {OK:'#22c55e', WARNING:'#f59e0b', CRITICAL:'#ef4444'};
+
+function drawField(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(!fieldData){return;}
+  fieldData.cells.forEach(cell=>{
+    ctx.fillStyle = colorByStatus[cell.status] || '#22c55e';
+    ctx.fillRect(cell.col*CELL+1, cell.row*CELL+1, CELL-2, CELL-2);
+  });
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  doneCells.forEach(d=>{
+    ctx.fillStyle='#22c55e';
+    ctx.fillRect(d.col*CELL+1, d.row*CELL+1, CELL-2, CELL-2);
+    ctx.fillStyle='#0a3d1f'; ctx.font='22px sans-serif';
+    ctx.fillText('\u2713', d.col*CELL+CELL/2, d.row*CELL+CELL/2);
+  });
+  const dx=drone.c*CELL+CELL/2, dy=drone.r*CELL+CELL/2;
+  ctx.beginPath(); ctx.arc(dx,dy,CELL*0.32,0,Math.PI*2);
+  ctx.fillStyle='#3b82f6'; ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='16px sans-serif';
+  ctx.fillText('\u2708', dx, dy);
+}
+
+function setStats(o){
+  if('day' in o) document.getElementById('stat-day').textContent=o.day;
+  if('zones' in o) document.getElementById('stat-zones').textContent=o.zones;
+  if('battery' in o) document.getElementById('stat-battery').textContent=Math.max(0,Math.round(o.battery));
+  if('tank' in o) document.getElementById('stat-tank').textContent=Math.max(0,o.tank);
+}
+const log=m=>document.getElementById('log').innerHTML=m;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function setBusy(b){busy=b;['btn-scan','btn-run','btn-reset'].forEach(id=>document.getElementById(id).disabled=b);}
+
+async function doScan(){
+  if(busy) return;
+  setBusy(true);
+  log('Запрашиваю данные поля с сервера…');
+  try{
+    const res=await fetch('/api/field');
+    fieldData=await res.json();
+    doneCells=[]; drone={r:0,c:0};
+    drawField();
+    const probs=fieldData.cells.filter(c=>c.status!=='OK').length;
+    setStats({zones:probs});
+    log('[Разведка] Сервер прислал данные поля. Проблемных участков (warning+critical): '+probs+'.<br>Нажмите «Прожить день».');
+  }catch(e){ log('Ошибка связи с сервером: '+e+'<br>Запущен ли web_server.py?'); }
+  setBusy(false);
+}
+
+async function doRun(){
+  if(busy) return;
+  setBusy(true);
+  log('Отправляю запрос «прожить день» на сервер…');
+  try{
+    const res=await fetch('/api/run-day');
+    const data=await res.json();
+
+    if(data.needs_reset){
+      setStats({tank:data.tank, battery:data.battery});
+      log('🪣 Бак пуст — дрон не может обрабатывать зоны.<br>Нажмите «↻ Новый цикл», чтобы заправить дрон и обновить поле.');
+      setBusy(false);
+      return;
+    }
+
+    fieldData=data.field;
+    doneCells=[]; drone={r:0,c:0};
+    drawField();
+    setStats({day:data.day, zones:data.total_zones, battery:250, tank:data.tank+data.done});
+    log('[Сервер] День '+data.day+': найдено зон '+data.total_zones+', облёт по приоритету (критичные первыми)…');
+    for(const step of data.steps){
+      while(drone.r!==step.row || drone.c!==step.col){
+        if(drone.r<step.row) drone.r++; else if(drone.r>step.row) drone.r--;
+        else if(drone.c<step.col) drone.c++; else if(drone.c>step.col) drone.c--;
+        drawField(); await sleep(40);
+      }
+      if(step.done){ doneCells.push({row:step.row,col:step.col}); }
+      drawField(); await sleep(90);
+    }
+    setStats({battery:data.battery, tank:data.tank});
+    log('[Итог] Обработано зон: '+data.done+' из '+data.total_zones+'. Обработанные участки стали зелёными ✓.<br>Заряд '+Math.max(0,Math.round(data.battery))+', бак '+Math.max(0,data.tank)+'.'+(data.done<data.total_zones?' Осталось '+(data.total_zones-data.done)+' — не хватило бака. «Новый цикл» заправит.':' Все зоны обработаны!'));
+  }catch(e){ log('Ошибка связи с сервером: '+e); }
+  setBusy(false);
+}
+
+async function doReset(){
+  if(busy) return;
+  setBusy(true);
+  try{
+    const res=await fetch('/api/reset');
+    fieldData=await res.json();
+    doneCells=[]; drone={r:0,c:0};
+    drawField();
+    setStats({zones:'—', battery:100, tank:10});
+    log('Сервер обновил поле и зарядил дроны. Нажмите «Разведка поля».');
+  }catch(e){ log('Ошибка связи с сервером: '+e); }
+  setBusy(false);
+}
+
+document.getElementById('btn-scan').addEventListener('click',doScan);
+document.getElementById('btn-run').addEventListener('click',doRun);
+document.getElementById('btn-reset').addEventListener('click',doReset);
+
+// При загрузке сразу показываем поле с сервера.
+doScan();
+</script>
+</body>
+</html>
