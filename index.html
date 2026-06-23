@@ -3,179 +3,214 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AgroDrones — мониторинг полей</title>
+<title>AgroDrones — цифровой мониторинг полей</title>
 <style>
-  :root{--bg:#0f1419;--panel:#1a2230;--panel2:#222c3d;--text:#e6edf3;--muted:#9aa7b8;--line:#2c3a4e;}
-  *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;min-height:100vh;padding:24px;}
-  .wrap{max-width:560px;margin:0 auto;}
-  h1{font-size:24px;font-weight:600;margin:0 0 4px;}
-  .sub{color:var(--muted);font-size:14px;margin:0 0 6px;}
-  .live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#22c55e;margin-bottom:18px;}
-  .dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;}
-  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
-  button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 16px;font-size:14px;cursor:pointer;transition:transform .08s,background .15s;}
-  button:hover:not(:disabled){background:#2b384c;}
-  button:active:not(:disabled){transform:scale(.97);}
-  button:disabled{opacity:.5;cursor:default;}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;}
-  .stat{background:var(--panel);border-radius:10px;padding:12px;}
-  .stat .lbl{font-size:12px;color:var(--muted);}
-  .stat .val{font-size:22px;font-weight:600;margin-top:2px;}
-  .board{background:var(--panel);border-radius:14px;padding:14px;display:flex;justify-content:center;}
-  canvas{max-width:100%;height:auto;border-radius:8px;}
-  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;font-size:13px;color:var(--muted);align-items:center;}
-  .legend span{display:inline-flex;align-items:center;gap:6px;}
-  .sw{width:14px;height:14px;border-radius:3px;display:inline-block;}
-  #log{margin-top:18px;background:#0c1117;border:1px solid var(--line);border-radius:10px;padding:14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;color:var(--muted);min-height:64px;}
-  .foot{margin-top:18px;font-size:12px;color:var(--muted);text-align:center;}
+  :root{
+    --bg:#07130d;--bg2:#0b1d13;--card:rgba(255,255,255,.08);--card2:rgba(255,255,255,.12);
+    --text:#eef8f0;--muted:#a9b8ad;--line:rgba(255,255,255,.14);--green:#35d07f;
+    --amber:#f6b64b;--red:#ff5f61;--blue:#58a6ff;--shadow:0 24px 80px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 0%,#173d25 0,#07130d 34%,#050b08 100%);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Ubuntu,sans-serif;padding:28px}
+  body:before{content:"";position:fixed;inset:0;background:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,black,transparent 80%);pointer-events:none}
+  .app{max-width:1180px;margin:0 auto;position:relative}
+  .hero{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;margin-bottom:18px}
+  .glass{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(16px);border-radius:28px}
+  .intro{padding:30px;overflow:hidden;position:relative}
+  .intro:after{content:"🚁";position:absolute;right:26px;top:18px;font-size:92px;opacity:.13;filter:blur(.2px)}
+  .kicker{display:inline-flex;gap:8px;align-items:center;color:#bfffd8;background:rgba(53,208,127,.12);border:1px solid rgba(53,208,127,.25);border-radius:999px;padding:8px 12px;font-size:13px;margin-bottom:14px}
+  .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 8px rgba(53,208,127,.12)}
+  h1{font-size:46px;line-height:1.02;margin:0 0 12px;letter-spacing:-1.4px}
+  .lead{color:var(--muted);font-size:17px;line-height:1.65;max-width:680px;margin:0}
+  .side{padding:22px;display:flex;flex-direction:column;justify-content:space-between;gap:16px}
+  .side-title{font-size:14px;color:var(--muted);margin-bottom:8px}
+  .status-line{font-size:26px;font-weight:700;letter-spacing:-.4px}
+  .btns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px}
+  button{border:1px solid var(--line);border-radius:16px;padding:13px 14px;background:rgba(255,255,255,.09);color:var(--text);font-size:14px;font-weight:650;cursor:pointer;transition:.18s transform,.18s background,.18s border-color}
+  button:hover:not(:disabled){transform:translateY(-1px);background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.28)}
+  button:active:not(:disabled){transform:translateY(0) scale(.98)}
+  button:disabled{opacity:.55;cursor:default}
+  .primary{background:linear-gradient(135deg,#24b765,#70e39e);color:#041108;border:0}
+  .grid{display:grid;grid-template-columns:360px 1fr;gap:18px}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .stat{padding:18px;border-radius:22px;background:rgba(255,255,255,.07);border:1px solid var(--line)}
+  .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .val{font-size:32px;font-weight:800;margin-top:6px;letter-spacing:-.8px}
+  .panel{padding:20px}
+  .board-wrap{padding:18px;display:grid;grid-template-columns:auto 240px;gap:18px;align-items:start}
+  .board{background:rgba(0,0,0,.23);border:1px solid var(--line);border-radius:22px;padding:14px;display:flex;justify-content:center}
+  canvas{max-width:100%;height:auto;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+  .legend{display:grid;gap:10px;color:var(--muted);font-size:14px}
+  .legend-item{display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.045)}
+  .sw{width:14px;height:14px;border-radius:5px;display:inline-block}
+  .log{margin-top:14px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:18px;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#c6d5ca;font-size:13px;line-height:1.75;min-height:96px}
+  .history{margin-top:14px;display:grid;gap:8px;color:var(--muted);font-size:13px}
+  .history-row{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:rgba(255,255,255,.045)}
+  .foot{margin-top:16px;color:var(--muted);font-size:12px;text-align:center}
+  @media(max-width:940px){.hero,.grid,.board-wrap{grid-template-columns:1fr}.btns{grid-template-columns:1fr}h1{font-size:36px}.stats{grid-template-columns:repeat(4,1fr)}}
+  @media(max-width:620px){body{padding:14px}.stats{grid-template-columns:repeat(2,1fr)}.intro{padding:22px}.val{font-size:26px}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🚁 AgroDrones</h1>
-  <p class="sub">Дистанционный мониторинг и обработка полей дронами</p>
-  <div class="live"><span class="dot"></span>данные приходят с Python-сервера (Flask)</div>
+<div class="app">
+  <section class="hero">
+    <div class="glass intro">
+      <div class="kicker"><span class="pulse"></span> Flask-сервер активен · симуляция в реальном времени</div>
+      <h1>AgroDrones</h1>
+      <p class="lead">Цифровой мониторинг поля: виртуальные датчики показывают состояние участков, система находит проблемные зоны, а обработчик закрывает задачи по маршруту.</p>
+      <div class="btns">
+        <button id="btn-scan">📡 Разведка поля</button>
+        <button class="primary" id="btn-run">▶ Прожить день</button>
+        <button id="btn-reset">↻ Новый цикл</button>
+      </div>
+    </div>
+    <aside class="glass side">
+      <div>
+        <div class="side-title">Текущее состояние</div>
+        <div class="status-line" id="status-line">Ожидание данных</div>
+      </div>
+      <div class="log" id="log">Загружаю карту поля с Python-сервера…</div>
+    </aside>
+  </section>
 
-  <div class="btns">
-    <button id="btn-scan">📡 Разведка поля</button>
-    <button id="btn-run">▶ Прожить день</button>
-    <button id="btn-reset">↻ Новый цикл</button>
-  </div>
+  <section class="grid">
+    <div class="glass panel">
+      <div class="stats">
+        <div class="stat"><div class="lbl">День</div><div class="val" id="stat-day">0</div></div>
+        <div class="stat"><div class="lbl">Зоны</div><div class="val" id="stat-zones">—</div></div>
+        <div class="stat"><div class="lbl">Заряд</div><div class="val" id="stat-battery">250</div></div>
+        <div class="stat"><div class="lbl">Бак</div><div class="val" id="stat-tank">22</div></div>
+      </div>
+      <div class="history" id="history"></div>
+      <p class="foot">Консольная версия: <code>python main.py</code><br>Веб-версия: <code>python web_server.py</code></p>
+    </div>
 
-  <div class="stats">
-    <div class="stat"><div class="lbl">День</div><div class="val" id="stat-day">0</div></div>
-    <div class="stat"><div class="lbl">Проблемных зон</div><div class="val" id="stat-zones">—</div></div>
-    <div class="stat"><div class="lbl">Заряд</div><div class="val" id="stat-battery">100</div></div>
-    <div class="stat"><div class="lbl">Бак</div><div class="val" id="stat-tank">10</div></div>
-  </div>
-
-  <div class="board"><canvas id="field" width="448" height="448"></canvas></div>
-
-  <div class="legend">
-    <span><span class="sw" style="background:#22c55e;"></span>OK</span>
-    <span><span class="sw" style="background:#f59e0b;"></span>Warning</span>
-    <span><span class="sw" style="background:#ef4444;"></span>Critical</span>
-    <span><span class="sw" style="background:#3b82f6;"></span>Дрон</span>
-    <span>✓ Обработано</span>
-  </div>
-
-  <div id="log">Нажмите «Разведка поля» — браузер запросит данные с сервера.</div>
-  <p class="foot">Веб-версия связана с Python через Flask · http://localhost:5000</p>
+    <div class="glass board-wrap">
+      <div class="board"><canvas id="field" width="448" height="448"></canvas></div>
+      <div class="legend">
+        <div class="legend-item"><span class="sw" style="background:#35d07f"></span>OK — участок в норме</div>
+        <div class="legend-item"><span class="sw" style="background:#f6b64b"></span>Warning — требуется внимание</div>
+        <div class="legend-item"><span class="sw" style="background:#ff5f61"></span>Critical — высокий приоритет</div>
+        <div class="legend-item"><span class="sw" style="background:#58a6ff"></span>Текущая позиция</div>
+        <div class="legend-item"><span>✓</span>Обработано за день</div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
-const N=8, CELL=56;
+const CELL=56;
 const canvas=document.getElementById('field');
 const ctx=canvas.getContext('2d');
-let fieldData=null;        // последнее состояние поля с сервера
+let fieldData=null;
 let drone={r:0,c:0};
-let doneCells=[];          // обработанные клетки (для галочек)
+let doneCells=[];
 let busy=false;
+const colorByStatus={OK:'#35d07f',WARNING:'#f6b64b',CRITICAL:'#ff5f61'};
+const el=id=>document.getElementById(id);
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
-const colorByStatus = {OK:'#22c55e', WARNING:'#f59e0b', CRITICAL:'#ef4444'};
-
+function setBusy(value){
+  busy=value;
+  ['btn-scan','btn-run','btn-reset'].forEach(id=>el(id).disabled=value);
+}
+function log(message){el('log').innerHTML=message;}
+function setStatus(message){el('status-line').textContent=message;}
+function setStats(o){
+  if('day' in o) el('stat-day').textContent=o.day;
+  if('zones' in o) el('stat-zones').textContent=o.zones;
+  if('battery' in o) el('stat-battery').textContent=Math.max(0,Math.round(o.battery));
+  if('tank' in o) el('stat-tank').textContent=Math.max(0,o.tank);
+}
+function renderHistory(items){
+  if(!items || !items.length){el('history').innerHTML='<div class="history-row"><span>История пуста</span><span>—</span></div>';return;}
+  el('history').innerHTML=items.slice(0,4).map(x=>`<div class="history-row"><span>День ${x.day}</span><span>${x.done}/${x.total} зон</span></div>`).join('');
+}
 function drawField(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(!fieldData){return;}
+  if(!fieldData) return;
   fieldData.cells.forEach(cell=>{
-    ctx.fillStyle = colorByStatus[cell.status] || '#22c55e';
-    ctx.fillRect(cell.col*CELL+1, cell.row*CELL+1, CELL-2, CELL-2);
+    const x=cell.col*CELL, y=cell.row*CELL;
+    ctx.fillStyle=colorByStatus[cell.status] || '#35d07f';
+    ctx.fillRect(x+2,y+2,CELL-4,CELL-4);
+    ctx.fillStyle='rgba(0,0,0,.22)';
+    ctx.font='11px ui-monospace, monospace';
+    ctx.textAlign='left';
+    ctx.textBaseline='top';
+    ctx.fillText(Math.round(cell.score || 0),x+7,y+7);
   });
-  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.textAlign='center';ctx.textBaseline='middle';
   doneCells.forEach(d=>{
-    ctx.fillStyle='#22c55e';
-    ctx.fillRect(d.col*CELL+1, d.row*CELL+1, CELL-2, CELL-2);
-    ctx.fillStyle='#0a3d1f'; ctx.font='22px sans-serif';
-    ctx.fillText('\u2713', d.col*CELL+CELL/2, d.row*CELL+CELL/2);
+    ctx.fillStyle='rgba(53,208,127,.92)';
+    ctx.fillRect(d.col*CELL+2,d.row*CELL+2,CELL-4,CELL-4);
+    ctx.fillStyle='#062713';ctx.font='24px sans-serif';
+    ctx.fillText('✓',d.col*CELL+CELL/2,d.row*CELL+CELL/2);
   });
   const dx=drone.c*CELL+CELL/2, dy=drone.r*CELL+CELL/2;
-  ctx.beginPath(); ctx.arc(dx,dy,CELL*0.32,0,Math.PI*2);
-  ctx.fillStyle='#3b82f6'; ctx.fill();
-  ctx.fillStyle='#fff'; ctx.font='16px sans-serif';
-  ctx.fillText('\u2708', dx, dy);
+  ctx.beginPath();ctx.arc(dx,dy,CELL*.32,0,Math.PI*2);
+  ctx.fillStyle='#58a6ff';ctx.fill();
+  ctx.fillStyle='#fff';ctx.font='18px sans-serif';ctx.fillText('✦',dx,dy);
 }
-
-function setStats(o){
-  if('day' in o) document.getElementById('stat-day').textContent=o.day;
-  if('zones' in o) document.getElementById('stat-zones').textContent=o.zones;
-  if('battery' in o) document.getElementById('stat-battery').textContent=Math.max(0,Math.round(o.battery));
-  if('tank' in o) document.getElementById('stat-tank').textContent=Math.max(0,o.tank);
-}
-const log=m=>document.getElementById('log').innerHTML=m;
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-function setBusy(b){busy=b;['btn-scan','btn-run','btn-reset'].forEach(id=>document.getElementById(id).disabled=b);}
-
 async function doScan(){
   if(busy) return;
-  setBusy(true);
-  log('Запрашиваю данные поля с сервера…');
+  setBusy(true);setStatus('Сканирование поля');log('Запрашиваю данные поля…');
   try{
     const res=await fetch('/api/field');
     fieldData=await res.json();
-    doneCells=[]; drone={r:0,c:0};
-    drawField();
-    const probs=fieldData.cells.filter(c=>c.status!=='OK').length;
-    setStats({zones:probs});
-    log('[Разведка] Сервер прислал данные поля. Проблемных участков (warning+critical): '+probs+'.<br>Нажмите «Прожить день».');
-  }catch(e){ log('Ошибка связи с сервером: '+e+'<br>Запущен ли web_server.py?'); }
+    doneCells=[];drone={r:0,c:0};drawField();
+    const probs=fieldData.problem_cells ?? fieldData.cells.filter(c=>c.status!=='OK').length;
+    setStats({zones:probs,battery:250,tank:22});
+    setStatus('Поле просканировано');
+    log(`[Разведка] Найдено проблемных участков: <b>${probs}</b>.<br>Теперь можно запускать рабочий день.`);
+  }catch(e){setStatus('Ошибка связи');log('Не удалось связаться с сервером: '+e+'<br>Проверь запуск <code>python web_server.py</code>.');}
   setBusy(false);
 }
-
 async function doRun(){
   if(busy) return;
-  setBusy(true);
-  log('Отправляю запрос «прожить день» на сервер…');
+  setBusy(true);setStatus('Рабочий день запущен');log('Сервер рассчитывает день и маршрут обработки…');
   try{
     const res=await fetch('/api/run-day');
     const data=await res.json();
-
     if(data.needs_reset){
-      setStats({tank:data.tank, battery:data.battery});
-      log('🪣 Бак пуст — дрон не может обрабатывать зоны.<br>Нажмите «↻ Новый цикл», чтобы заправить дрон и обновить поле.');
-      setBusy(false);
-      return;
+      setStats({battery:data.battery,tank:data.tank,zones:data.total_zones});
+      renderHistory(data.history);
+      setStatus('Нужен новый цикл');
+      log('Бак или заряд закончились. Нажмите «Новый цикл», чтобы восстановить систему.');
+      setBusy(false);return;
     }
-
-    fieldData=data.field;
-    doneCells=[]; drone={r:0,c:0};
-    drawField();
-    setStats({day:data.day, zones:data.total_zones, battery:250, tank:data.tank+data.done});
-    log('[Сервер] День '+data.day+': найдено зон '+data.total_zones+', облёт по приоритету (критичные первыми)…');
+    fieldData=data.field;doneCells=[];drone={r:0,c:0};drawField();
+    setStats({day:data.day,zones:data.total_zones,battery:250,tank:data.tank+data.done});
+    log(`День ${data.day}: найдено зон ${data.total_zones}. Показываю выполнение задач…`);
     for(const step of data.steps){
       while(drone.r!==step.row || drone.c!==step.col){
         if(drone.r<step.row) drone.r++; else if(drone.r>step.row) drone.r--;
         else if(drone.c<step.col) drone.c++; else if(drone.c>step.col) drone.c--;
-        drawField(); await sleep(40);
+        drawField();await sleep(45);
       }
-      if(step.done){ doneCells.push({row:step.row,col:step.col}); }
-      drawField(); await sleep(90);
+      if(step.done) doneCells.push({row:step.row,col:step.col});
+      drawField();await sleep(120);
     }
-    setStats({battery:data.battery, tank:data.tank});
-    log('[Итог] Обработано зон: '+data.done+' из '+data.total_zones+'. Обработанные участки стали зелёными ✓.<br>Заряд '+Math.max(0,Math.round(data.battery))+', бак '+Math.max(0,data.tank)+'.'+(data.done<data.total_zones?' Осталось '+(data.total_zones-data.done)+' — не хватило бака. «Новый цикл» заправит.':' Все зоны обработаны!'));
-  }catch(e){ log('Ошибка связи с сервером: '+e); }
+    setStats({battery:data.battery,tank:data.tank});
+    renderHistory(data.history);
+    setStatus(data.done===data.total_zones?'День завершён идеально':'День завершён частично');
+    log(`[Итог] Обработано <b>${data.done}</b> из <b>${data.total_zones}</b> зон.<br>Заряд: ${Math.max(0,Math.round(data.battery))}. Бак: ${Math.max(0,data.tank)}.`);
+  }catch(e){setStatus('Ошибка связи');log('Ошибка связи с сервером: '+e);}
   setBusy(false);
 }
-
 async function doReset(){
   if(busy) return;
-  setBusy(true);
+  setBusy(true);setStatus('Обновление цикла');
   try{
     const res=await fetch('/api/reset');
-    fieldData=await res.json();
-    doneCells=[]; drone={r:0,c:0};
-    drawField();
-    setStats({zones:'—', battery:100, tank:10});
-    log('Сервер обновил поле и зарядил дроны. Нажмите «Разведка поля».');
-  }catch(e){ log('Ошибка связи с сервером: '+e); }
+    fieldData=await res.json();doneCells=[];drone={r:0,c:0};drawField();
+    setStats({zones:fieldData.problem_cells ?? '—',battery:250,tank:22});
+    setStatus('Новый цикл готов');log('Поле обновлено, система готова к новой разведке.');
+  }catch(e){setStatus('Ошибка связи');log('Ошибка связи с сервером: '+e);}
   setBusy(false);
 }
-
-document.getElementById('btn-scan').addEventListener('click',doScan);
-document.getElementById('btn-run').addEventListener('click',doRun);
-document.getElementById('btn-reset').addEventListener('click',doReset);
-
-// При загрузке сразу показываем поле с сервера.
+el('btn-scan').addEventListener('click',doScan);
+el('btn-run').addEventListener('click',doRun);
+el('btn-reset').addEventListener('click',doReset);
 doScan();
 </script>
 </body>
